@@ -1,26 +1,41 @@
 Package: BCyto
-Title: A Shiny app for Flow Cytometry data analysis
-Version: 0.0.0.9000
-Authors@R: 
-    person("Caio", "Santos Bonilha", , "caiosantosb@hotmail.dom", role = c("aut", "cre"),
-           comment = c(ORCID = "0000-0003-1168-8392"))
-Description: What the package does (one paragraph).
-License: `use_gpl3_license()`
+Title: A Shiny App for Flow Cytometry Data Analysis and Visualization
+Version: 1.0.0
+Authors@R: person("Caio", "Santos Bonilha", email="caiosantosb@hotmail.com", 
+    role = c("aut", "cre"), comment = c(ORCID="0000-0003-1168-8392 "))
+Description: The BCyto R package is an open-source project that provides an 
+    user-friendly, high-performance UI for Flow Cytometry analysis.
+License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.2
-biocViews:
-    flowCore,
-    flowWorkspace,
-    Rgraphviz
-Imports: 
+Depends:
+    R (>= 4.1.0)
+Remotes:
+    carlosproca/autospill
+Imports:
     autospill,
+    magrittr,
+    flowWorkspace (>= 4.1.0),
+    flowCore (>= 2.4.0),
+    Rgraphviz,
+    htmlwidgets,
+    fs,
+    methods,
+    graph,
+    grDevices,
+    graphics,
+    stats,
+    utils,
+    lattice,
     dplyr,
     MASS,
-    rhandsontable,
+    rhandsontable (>= 0.3.8),
     Rtsne,
     scales,
-    shiny,
+    shiny (>= 1.7.1),
     shinyFiles,
-    shinyjs
+    shinyjs (>= 2.0.0),
+    data.table,
+    base64enc

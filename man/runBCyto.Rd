@@ -2,10 +2,14 @@
 % Please edit documentation in R/app.R
 \name{runBCyto}
 \alias{runBCyto}
-\title{Runs BCyto app}
+\title{Runs the BCyto app}
 \usage{
 runBCyto()
 }
 \description{
-Runs BCyto app
+runBCyto() is a wrapper function of
+shinyApp(ui, server, onStart).
+}
+\details{
+Use runBCyto() at the R console for initiating the BCyto Shiny app.
 }
