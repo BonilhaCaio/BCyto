@@ -1,0 +1,22 @@
+citHeader("To cite BCyto in publications use:")
+
+year <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date, perl = TRUE)
+note <- sprintf("R package version %s", meta$Version)
+url <- "https://github.com/BonilhaCaio/BCyto"
+
+citEntry(
+  entry    = "Manual",
+  title    = "BCyto: A Shiny App for Flow Cytometry Data Analysis and Visualization",
+  author   = "Caio Santos Bonilha",
+  journal  = "",
+  year     = year,
+  volume   = "",
+  number   = "",
+  pages    = "",
+  note     = note,
+  url      = url,
+  doi      = "",
+  textVersion = paste0(
+    "Caio Santos Bonilha (", year, "). BCyto: A Shiny App for Flow Cytometry Data Analysis and Visualization. ", note, ". ", url, "."
+  )
+)
