@@ -23,11 +23,11 @@ install.packages("BiocManager")
 devtools::install_github("BonilhaCaio/BCyto")
 ```
 
-*Important*: as Bioconductor currently does not support the Apple M1
-(a.k.a. arm64) architecture in native mode, **BCyto** requires the Intel
-64-bit R version (x86_64 arch) to work in Apple M1 computers. As such,
-when downloading R from CRAN, please choose R-x.x.x.pkg, and not
-R-x.x.x-arm64.pkg.
+*Note: as Bioconductor currently does not support the Apple M1 (a.k.a.
+arm64) architecture in native mode, BCyto requires the Intel 64-bit R
+version (x86_64 arch) to work in Apple M1 computers. As such, when
+downloading R from CRAN, please choose R-x.x.x.pkg, and not
+R-x.x.x-arm64.pkg.*
 
 ## Usage
 
@@ -40,9 +40,8 @@ BCyto::runBCyto()
 
 ## Credits and citation
 
-A publication where the package dependencies and imports will be
-appropriately credited is on the way. Meanwhile, you can cite **BCyto**
-as follows:
+A publication where dependencies and imports will be appropriately
+credited is on the way. Meanwhile, please cite **BCyto** as follows:
 
 ``` r
 citation("BCyto")
