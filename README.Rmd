@@ -45,7 +45,7 @@ BCyto::runBCyto()
 
 ## Credits and citation
 
-A publication where the package dependencies and imports will be appropriately credited is on the way. Meanwhile, you can cite **BCyto** as follows:
+A publication where dependencies and imports will be appropriately credited is on the way. Meanwhile, please cite **BCyto** as follows:
 
 ```{r, eval = TRUE}
 citation("BCyto")
