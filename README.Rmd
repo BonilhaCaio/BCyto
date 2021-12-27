@@ -13,12 +13,12 @@ knitr::opts_chunk$set(
 )
 ```
 
-# BCyto
+# BCyto <img src="inst/logo/LogoHRes.png" align="right" alt="" width="180"/>
 
 <!-- badges: start -->
 <!-- badges: end -->
 
-**BCyto** is is an open-source project that provides an user-friendly, high-performance user interface for Flow Cytometry analysis.
+**BCyto** is is an open-source project that provides an user-friendly, high-performance  interface for Flow Cytometry analysis.
 
 ## Installation
 

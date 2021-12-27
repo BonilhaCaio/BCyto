@@ -1,13 +1,13 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# BCyto
+# BCyto <img src="inst/logo/LogoHRes.png" align="right" alt="" width="180"/>
 
 <!-- badges: start -->
 <!-- badges: end -->
 
 **BCyto** is is an open-source project that provides an user-friendly,
-high-performance user interface for Flow Cytometry analysis.
+high-performance interface for Flow Cytometry analysis.
 
 ## Installation
 
