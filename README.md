@@ -7,12 +7,12 @@
 <!-- badges: end -->
 
 **BCyto** is is an open-source project that provides an user-friendly,
-high-performance interface for Flow Cytometry analysis.
+high-performance interface for Flow Cytometry analysis in R.
 
 ## Installation
 
 **BCyto** can be installed by first installing R and typing the
-following commands in R console:
+following commands in the R console:
 
 ``` r
 #to allow installation of GitHub packages
@@ -25,9 +25,8 @@ devtools::install_github("BonilhaCaio/BCyto")
 
 *Note: as Bioconductor currently does not support the Apple M1 (a.k.a.
 arm64) architecture in native mode, BCyto requires the Intel 64-bit R
-version (x86_64 arch) to work in Apple M1 computers. As such, when
-downloading R from CRAN, please choose R-x.x.x.pkg, and not
-R-x.x.x-arm64.pkg.*
+version (x86_64 arch) to work in Apple M1 computers. When downloading R
+from CRAN, please choose R-x.x.x.pkg, and not R-x.x.x-arm64.pkg.*
 
 ## Usage
 
@@ -40,8 +39,9 @@ BCyto::runBCyto()
 
 ## Credits and citation
 
-A publication where dependencies and imports will be appropriately
-credited is on the way. Meanwhile, please cite **BCyto** as follows:
+A manuscript where dependencies and imports will be appropriately
+credited was submitted for publication on December 27th (2021).
+Meanwhile, please cite **BCyto** as follows:
 
 ``` r
 citation("BCyto")
