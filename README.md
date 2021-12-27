@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# BCyto <img src="inst/logo/LogoHRes.png" align="right" alt="" width="180"/>
+# BCyto <img src="inst/logo/LogoHRes.png" align="right" alt="" width="160"/>
 
 <!-- badges: start -->
 <!-- badges: end -->
