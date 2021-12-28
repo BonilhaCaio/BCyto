@@ -6,7 +6,7 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-**BCyto** is is an open-source project that provides an user-friendly,
+**BCyto** is an open-source project that provides an user-friendly,
 high-performance interface for Flow Cytometry analysis in R.
 
 ## Installation
