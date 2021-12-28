@@ -15,11 +15,11 @@ high-performance interface for Flow Cytometry analysis in R.
 following commands in the R console:
 
 ``` r
-#to allow installation of GitHub packages
+#allowing installation of GitHub packages
 install.packages("devtools")
-#to enable donwload of BioConductor dependencies
+#enabling donwload of BioConductor dependencies
 install.packages("BiocManager")
-#BCyto can then be installed
+#installing BCyto
 devtools::install_github("BonilhaCaio/BCyto")
 ```
 
