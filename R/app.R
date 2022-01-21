@@ -4885,11 +4885,11 @@ server <- function(input, output, session) {
             } else {
                 setwd(bc$tempFilePath)
                 validityOut <- vapply(seq(bc$tempFileList), function(x){
-                        list(tryCatch({
-                            keyword(load_cytoframe_from_fcs(bc$tempFileList[x])
-                            )
-                        }))
-                    }, list(1))
+                    list(tryCatch({
+                        keyword(load_cytoframe_from_fcs(bc$tempFileList[x])
+                        )
+                    }))
+                }, list(1))
                 verifier <- vapply(validityOut, function(x)
                     length(x) > 0, TRUE)
                 if(all(verifier)) {
@@ -5123,50 +5123,41 @@ server <- function(input, output, session) {
         hide("downloadTestData")
         hide("cancelModal")
         if(input$radioTestData == "test-data-1") {
-            bc$fileList <- c("Compensation Controls_APC Stained Control_013
-                             .fcs",
-                             "Compensation Controls_FITC Stained Control_011
-                             .fcs",
-                             "Compensation Controls_PE Stained Control_014
-                             .fcs",
-                             "Compensation Controls_PE-Cy7 Stained Control_015
-                             .fcs",
-                             "Compensation Controls_Unstained Control_010
-                             .fcs",
-                             "Compensation Controls_V 450 Stained Control_012
-                             .fcs",
-                             "Specimen_001_FMO-CD11c_003.fcs",
-                             "Specimen_001_FMO-CD86_005.fcs",
-                             "Specimen_001_FMO-Gr1_002.fcs",
-                             "Specimen_001_FMO-MHCII_004.fcs",
-                             "Specimen_001_FMO-Viability_001.fcs",
-                             "Specimen_001_iDC_001_006.fcs",
-                             "Specimen_001_iDC_002_007.fcs",
-                             "Specimen_001_mDC_001_008.fcs",
-                             "Specimen_001_mDC_002_009.fcs")
+            bc$fileList <- c(
+                "Compensation Controls_APC Stained Control_013.fcs",
+                "Compensation Controls_FITC Stained Control_011.fcs",
+                "Compensation Controls_PE Stained Control_014.fcs",
+                "Compensation Controls_PE-Cy7 Stained Control_015.fcs",
+                "Compensation Controls_Unstained Control_010.fcs",
+                "Compensation Controls_V 450 Stained Control_012.fcs",
+                "Specimen_001_FMO-CD11c_003.fcs",
+                "Specimen_001_FMO-CD86_005.fcs",
+                "Specimen_001_FMO-Gr1_002.fcs",
+                "Specimen_001_FMO-MHCII_004.fcs",
+                "Specimen_001_FMO-Viability_001.fcs",
+                "Specimen_001_iDC_001_006.fcs",
+                "Specimen_001_iDC_002_007.fcs",
+                "Specimen_001_mDC_001_008.fcs",
+                "Specimen_001_mDC_002_009.fcs")
             bc$compControlIDs <- seq_len(6)
             bc$onlySampleIDs <- c(7:15)
             datasetFile <- "dataset-1.RData"
         } else {
-            bc$fileList <- c("Compensation Controls_APC-Cy7 Stained Control_080
-                             .fcs",
-                             "Compensation Controls_FITC Stained Control_078
-                             .fcs",
-                             "Compensation Controls_PE Stained Control_081
-                             .fcs",
-                             "Compensation Controls_Unstained Control_077
-                             .fcs",
-                             "Compensation Controls_V 450 Stained Control_079
-                             .fcs",
-                             "Specimen_001_0-00ug-mL_002_030.fcs",
-                             "Specimen_001_0-01ug-mL_003_034.fcs",
-                             "Specimen_001_0-05ug-mL_002_036.fcs",
-                             "Specimen_001_1-00ug-mL_001_044.fcs",
-                             "Specimen_001_5-00ug-mL_002_048.fcs",
-                             "Specimen_001_FMO-CD4_003.fcs",
-                             "Specimen_001_FMO-CD44_004.fcs",
-                             "Specimen_001_FMO-CFSE_001.fcs",
-                             "Specimen_001_FMO-Viability_002.fcs")
+            bc$fileList <- c(
+                "Compensation Controls_APC-Cy7 Stained Control_080.fcs",
+                "Compensation Controls_FITC Stained Control_078.fcs",
+                "Compensation Controls_PE Stained Control_081.fcs",
+                "Compensation Controls_Unstained Control_077.fcs",
+                "Compensation Controls_V 450 Stained Control_079.fcs",
+                "Specimen_001_0-00ug-mL_002_030.fcs",
+                "Specimen_001_0-01ug-mL_003_034.fcs",
+                "Specimen_001_0-05ug-mL_002_036.fcs",
+                "Specimen_001_1-00ug-mL_001_044.fcs",
+                "Specimen_001_5-00ug-mL_002_048.fcs",
+                "Specimen_001_FMO-CD4_003.fcs",
+                "Specimen_001_FMO-CD44_004.fcs",
+                "Specimen_001_FMO-CFSE_001.fcs",
+                "Specimen_001_FMO-Viability_002.fcs")
             bc$compControlIDs <- seq_len(5)
             bc$onlySampleIDs <- c(6:14)
             datasetFile <- "dataset-2.RData"
