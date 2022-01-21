@@ -49,7 +49,7 @@ citation("BCyto")
 #> To cite BCyto in publications use:
 #> 
 #>   Caio Santos Bonilha (2021). BCyto: A Shiny App for Flow Cytometry
-#>   Data Analysis and Visualization. R package version 1.0.0.
+#>   Data Analysis and Visualization. R package version 1.0.1.
 #>   https://github.com/BonilhaCaio/BCyto.
 #> 
 #> A BibTeX entry for LaTeX users is
@@ -58,7 +58,7 @@ citation("BCyto")
 #>     title = {BCyto: A Shiny App for Flow Cytometry Data Analysis and Visualization},
 #>     author = {Caio Santos Bonilha},
 #>     year = {2021},
-#>     note = {R package version 1.0.0},
+#>     note = {R package version 1.0.1},
 #>     url = {https://github.com/BonilhaCaio/BCyto},
 #>   }
 ```
