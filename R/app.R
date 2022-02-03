@@ -37,12 +37,14 @@ runBCyto <- function() {
 #' @importFrom base64enc dataURI
 #' @importFrom dplyr arrange
 #' @importFrom flowCore compensate
+#' @importFrom flowCore compensation
 #' @importFrom flowCore flowSet_to_list
 #' @importFrom flowCore keyword
 #' @importFrom flowCore polygonGate
 #' @importFrom flowCore quadGate
 #' @importFrom flowCore rectangleGate
 #' @importFrom flowCore spillover
+#' @importFrom flowCore transformList
 #' @importFrom flowWorkspace GatingSet
 #' @importFrom flowWorkspace cytoframe_to_flowFrame
 #' @importFrom flowWorkspace cytoset
@@ -83,6 +85,7 @@ runBCyto <- function() {
 #' @importFrom methods is
 #' @importFrom methods new
 #' @importFrom methods rbind2
+#' @importFrom moments skewness
 #' @importFrom rhandsontable hot_cols
 #' @importFrom rhandsontable hot_context_menu
 #' @importFrom rhandsontable hot_validate_numeric
@@ -110,8 +113,10 @@ runBCyto <- function() {
 #' @importFrom shinyjs useShinyjs
 #' @importFrom stats density
 #' @importFrom stats rnorm
+#' @importFrom stats sd
 #' @importFrom stats setNames
 #' @importFrom utils download.file
+#' @importFrom utils getFromNamespace
 #' @importFrom utils tail
 #' @importFrom utils write.csv
 #' @importFrom utils write.table
@@ -226,6 +231,19 @@ bc$blackB <- "color:white; background-color:black; border-color:black"
 bc$whiteB <- "color:black; background-color:white; border-color:black"
 bc$sliderCol <- "+span>.irs-bar {background: black; border-top: black;
         border-bottom: black}"
+sysInf <- Sys.info()
+if(!is.null(sysInf)) {
+    OS <- sysInf['sysname']
+    if(OS == 'Darwin') {
+        OS <- "OSX"
+    }
+} else {
+    OS <- .Platform$OS.type
+    if (grepl("^darwin", R.version$OS)) {
+        OS <- "OSX"
+    }
+}
+bc$OS <- OS
 
 #Internal funcs----
 disableTabs <- function() {
@@ -234,6 +252,376 @@ disableTabs <- function() {
     js$disableTab("prolifTab")
     js$disableTab("tsneTab")
     js$disableTab("resultTab")
+}
+
+autoGetMarker <- function(scale.untransformed, flow.gate, flow.control, asp) {
+    if (scale.untransformed)
+        expr.data <- flow.control$expr.data.untr
+    else expr.data <- flow.control$expr.data.tran
+    marker.spillover.zero <- rep(0, flow.control$marker.n)
+    names(marker.spillover.zero) <- flow.control$marker
+    marker.spillover <- lapply(flow.control$sample, function(samp) {
+        marker.proper <- samp
+        id <- which(flow.control$event.sample == samp)[flow.gate[[samp]]]
+        marker.proper.expr <- expr.data[id, marker.proper]
+        marker.expr.n <- length(marker.proper.expr)
+        id2 <- round(marker.expr.n * asp$rlm.trim.factor)
+        marker.proper.expr.low <- sort(marker.proper.expr)[id2]
+        marker.proper.expr.high <- sort(marker.proper.expr,
+                                        decreasing = TRUE)[id2]
+        marker.spillover.inte <- marker.spillover.zero
+        marker.spillover.coef <- marker.spillover.zero
+        for (marker in flow.control$marker) if (marker == marker.proper)
+            marker.spillover.coef[marker] <- 1
+        else {
+            marker.expr <- expr.data[id, marker]
+            marker.expr.low <- sort(marker.expr)[id2]
+            marker.expr.high <- sort(marker.expr, decreasing = TRUE)[id2]
+            Fir <- marker.proper.expr > marker.proper.expr.low
+            Sec <- marker.proper.expr < marker.proper.expr.high
+            Thi <- marker.expr > marker.expr.low
+            For <- marker.expr < marker.expr.high
+            expr.trim.idx <- which(Fir & Sec & Thi & For)
+            marker.proper.expr.trim <- marker.proper.expr[expr.trim.idx]
+            marker.expr.trim <- marker.expr[expr.trim.idx]
+            fitRobust <- getFromNamespace("fit.robust.linear.model",
+                                          "autospill")
+            spillover.model.result <- fitRobust(marker.proper.expr.trim,
+                                                marker.expr.trim,
+                                                marker.proper,
+                                                marker, asp)
+            marker.spillover.inte[marker] <- spillover.model.result[1,1]
+            marker.spillover.coef[marker] <- spillover.model.result[2,1]
+        }
+        c(marker.spillover.inte, marker.spillover.coef)
+    })
+    marker.spillover <- do.call(rbind, marker.spillover)
+    rownames(marker.spillover) <- flow.control$marker
+    list(inte = marker.spillover[, 1:flow.control$marker.n],
+         coef = marker.spillover[, 1:flow.control$marker.n +
+                                     flow.control$marker.n])
+}
+
+autoRefineSpill <- function(spill.unt, spill.tran, f.gate, f.contr, asp) {
+    rs.convergence <- rs.exit <- rs.iter.last <- FALSE
+    rs.iter <- 0
+    rs.iter.width <- floor(log10(asp$rs.iter.max)) + 1
+    rs.lambda <- asp$rs.lambda.coarse
+    rs.delta <- -1
+    rs.delta.threshold <- asp$rs.delta.threshold.untr
+    rs.delta.history <- rep(-1, asp$rs.delta.history.n)
+    rs.scale.untransformed <- TRUE
+    rs.conv.log <- data.frame(iter = numeric(), scale = character(),
+                              lambda = numeric(), delta = numeric(),
+                              delta.max = numeric(),
+                              delta.change = numeric(),
+                              stringsAsFactors = FALSE)
+    spillover.curr <- diag(f.contr$marker.n)
+    spillover.update <- spill.unt$coef - diag(f.contr$marker.n)
+    while (!rs.exit) {
+        spillover.curr <- spillover.curr + spillover.update
+        spillover.curr <- sweep(spillover.curr, 1, diag(spillover.curr), "/")
+        compensation.curr <- solve(spillover.curr)
+        spill.curr.orig <- spillover.curr
+        rownames(spill.curr.orig) <- f.contr$marker.original
+        colnames(spill.curr.orig) <- f.contr$marker.original
+        comp.curr.orig <- compensation.curr
+        rownames(comp.curr.orig) <- f.contr$marker.original
+        colnames(comp.curr.orig) <- f.contr$marker.original
+        if ((rs.iter == 0 && asp$rs.save.table.initial)
+            || (asp$rs.save.table.every > 0
+                && rs.iter%%asp$rs.save.table.every == 0)
+            || rs.iter.last) {
+            if (!is.null(asp$table.spillover.dir)) {
+                tab.spill.name <- ifelse(
+                    rs.iter.last, sprintf("%s.csv", asp$spillover.file.name),
+                    sprintf("%s_%0*d.csv", asp$spillover.file.name,
+                            rs.iter.width, rs.iter))
+                write.csv(spill.curr.orig, file = file.path(
+                    asp$table.spillover.dir, tab.spill.name))
+            }
+            if (!is.null(asp$table.compensation.dir)) {
+                tab.comp.name <- ifelse(
+                    rs.iter.last,sprintf("%s.csv", asp$compensation.file.name),
+                    sprintf("%s_%0*d.csv", asp$compensation.file.name,
+                            rs.iter.width, rs.iter))
+                write.csv(comp.curr.orig, file = file.path(
+                    asp$table.compensation.dir, tab.comp.name))
+            }
+            plotMat <- utils::getFromNamespace("plot.matrix", "autospill")
+            if (!is.null(asp$figure.spillover.dir)) {
+                fig.spill.lab <- ifelse(
+                    rs.iter.last, "", sprintf("_%0*d", rs.iter.width, rs.iter))
+                plotMat(spillover.curr, TRUE, asp$figure.spillover.dir,
+                        fig.spill.lab, f.contr, asp)
+            }
+            if (!is.null(asp$figure.compensation.dir)) {
+                figure.compensation.file.label <- ifelse(
+                    rs.iter.last,"", sprintf("_%0*d", rs.iter.width, rs.iter))
+                plotMat(compensation.curr, FALSE,
+                        asp$figure.compensation.dir,
+                        figure.compensation.file.label, f.contr, asp)
+            }
+        }
+        if (rs.scale.untransformed) {
+            expr.data.unco <- f.contr$expr.data.untr
+            marker.spillover.unco <- spill.unt
+        }
+        else {
+            expr.data.unco <- f.contr$expr.data.tran
+            marker.spillover.unco <- spill.tran
+        }
+        flow.set.comp <- lapply(f.contr$flow.set, compensate,
+                                compensation(spill.curr.orig))
+        if (!rs.scale.untransformed)
+            flow.set.comp <- lapply(flow.set.comp, transform,
+                                    transformList(names(f.contr$transform),
+                                                  f.contr$transform))
+        getFlow <- getFromNamespace("get.flow.expression.data", "autospill")
+        expr.data.comp <- getFlow(flow.set.comp, f.contr)
+        m <- "internal error: inconsistent event or dye names"
+        checkCrit <- getFromNamespace("check.critical", "autospill")
+        checkCrit(identical(dimnames(expr.data.comp),
+                            dimnames(expr.data.unco)), m)
+        if ((rs.iter == 0 && asp$rs.plot.figure.initial)
+            || (asp$rs.plot.figure.every > 0
+                && rs.iter%%asp$rs.plot.figure.every == 0)
+            || rs.iter.last) {
+            plot.scatter.figure <- TRUE
+            figure.scatter.file.label <- ifelse(
+                rs.iter.last, "final", sprintf("%0*d", rs.iter.width, rs.iter))
+        }
+        else {
+            plot.scatter.figure <- FALSE
+            figure.scatter.file.label <- NULL
+        }
+        compensation.error <- autoErr(expr.data.unco, expr.data.comp,
+                                      marker.spillover.unco,
+                                      rs.scale.untransformed,
+                                      plot.scatter.figure,
+                                      figure.scatter.file.label,
+                                      f.gate, f.contr, asp)
+        slope.error <- compensation.error$slop - diag(f.contr$marker.n)
+        rs.delta.prev <- rs.delta
+        rs.delta <- sd(slope.error)
+        rs.delta.max <- max(abs(slope.error))
+        if (rs.delta.prev >= 0)
+            rs.delta.history[rs.iter%%asp$rs.delta.history.n +
+                                 1] <- rs.delta - rs.delta.prev
+        else rs.delta.history[rs.iter%%asp$rs.delta.history.n +
+                                  1] <- -1
+        rs.delta.change <- mean(rs.delta.history)
+        rs.conv.log[rs.iter + 1, ] <- list(rs.iter,
+                                           ifelse(rs.scale.untransformed,
+                                                  "linear", "bi-exp"),
+                                           rs.lambda, rs.delta, rs.delta.max,
+                                           rs.delta.change)
+        if (asp$verbose) {
+            cat(sprintf("iter %0*d, %s scale, lambda %.1f, delta %g,
+                        delta.max %g, delta.change %g\n",
+                        rs.iter.width, rs.iter, ifelse(rs.scale.untransformed,
+                                                       "linear", "bi-exp"),
+                        rs.lambda, rs.delta, rs.delta.max, rs.delta.change))
+        }
+        if ((rs.iter == 0 && asp$rs.save.table.initial)
+            || (asp$rs.save.table.every > 0
+                && rs.iter%%asp$rs.save.table.every == 0)
+            || rs.iter.last) {
+            if (!is.null(asp$table.slope.error.dir)) {
+                table.slop.err.name <- ifelse(
+                    rs.iter.last, sprintf("%s.csv", asp$slop.err.name),
+                    sprintf("%s_%0*d.csv", asp$slop.err.name,
+                            rs.iter.width, rs.iter))
+                write.csv(slope.error,
+                          file = file.path(asp$table.slope.error.dir,
+                                           table.slop.err.name))
+            }
+            plotDens <- utils::getFromNamespace("plot.density.log", "autospill")
+            if (!is.null(asp$figure.slope.error.dir)) {
+                fig.slop.err.name <- sprintf("%s%s.png", asp$slop.err.name,
+                                             ifelse(rs.iter.last,"",
+                                                    sprintf("_%0*d",
+                                                            rs.iter.width,
+                                                            rs.iter)))
+                plotDens(slope.error, "compensation error",
+                         file.path(asp$figure.slope.error.dir,
+                                   fig.slop.err.name), asp)
+            }
+            if (!is.null(asp$table.skewness.dir)) {
+                tab.skew.name <- ifelse(rs.iter.last,
+                                        sprintf("%s.csv",
+                                                asp$skewness.file.name),
+                                        sprintf("%s_%0*d.csv",
+                                                asp$skewness.file.name,
+                                                rs.iter.width, rs.iter))
+                write.csv(compensation.error$skew,
+                          file = file.path(asp$table.skewness.dir,
+                                           tab.skew.name))
+            }
+            ver <- f.contr$autof.marker.idx
+            if (!is.null(asp$figure.skewness.dir)) {
+                if (!is.null(ver))
+                    spillover.skewness <- compensation.error$skew[-ver, -ver]
+                else spillover.skewness <- compensation.error$skew
+                figure.skewness.file.name <- sprintf("%s%s.png",
+                                                     asp$skewness.file.name,
+                                                     ifelse(
+                                                         rs.iter.last, "",
+                                                         sprintf("_%0*d",
+                                                                 rs.iter.width,
+                                                                 rs.iter)))
+                plotDens(spillover.skewness, "spillover skewness",
+                         file.path(asp$figure.skewness.dir,
+                                   figure.skewness.file.name), asp)
+            }
+        }
+        if (rs.scale.untransformed && rs.delta.max < rs.delta.threshold) {
+            rs.scale.untransformed <- FALSE
+            rs.delta.threshold <- asp$rs.delta.threshold.tran
+            rs.lambda <- asp$rs.lambda.coarse
+            rs.delta <- -1
+            rs.delta.history <- rep(-1, asp$rs.delta.history.n)
+            rs.delta.change <- -1
+        }
+        if (rs.delta.change > -asp$rs.delta.threshold.change &&
+            rs.lambda == asp$rs.lambda.coarse) {
+            rs.lambda <- asp$rs.lambda.fine
+            rs.delta <- -1
+            rs.delta.history <- rep(-1, asp$rs.delta.history.n)
+            rs.delta.change <- -1
+        }
+        rs.convergence <- !rs.scale.untransformed &&
+            (rs.delta.max < rs.delta.threshold ||
+                 rs.delta.change > -asp$rs.delta.threshold.change)
+        rs.exit <- (rs.convergence && rs.iter.last) ||
+            (rs.delta.change > -asp$rs.delta.threshold.change &&
+                 rs.scale.untransformed) ||
+            (!rs.convergence && rs.iter == asp$rs.iter.max) ||
+            rs.iter > asp$rs.iter.max
+        rs.iter.last <- rs.convergence
+        rs.iter <- rs.iter + 1
+        spillover.update <- rs.lambda * (slope.error %*% spillover.curr)
+    }
+    if (!is.null(asp$table.convergence.dir))
+        write.csv(rs.conv.log,
+                  file = file.path(
+                      asp$table.convergence.dir,
+                      sprintf("%s.csv",
+                              asp$convergence.file.name)), row.names = FALSE)
+    if (!is.null(asp$figure.convergence.dir))
+        plot_convergence(rs.conv.log, NULL, asp)
+    m <- "no convergence in refinement of spillover matrix"
+    checkCrit <- getFromNamespace("check.critical", "autospill")
+    checkCrit(rs.convergence, m)
+    list(spillover = spillover.curr, compensation = compensation.curr,
+         error = compensation.error, convergence = rs.conv.log)
+}
+
+autoErr <- function(unc, comp, sp.unc, scal, fig, lab, f.gate, f.cont, asp) {
+    m.spill.zero <- rep(0, f.cont$marker.n)
+    names(m.spill.zero) <- f.cont$marker
+    marker.spillover.comp <- lapply(f.cont$sample, function(samp) {
+        marker.proper <- samp
+        preID <- f.cont$event.sample == samp
+        id <- which(f.cont$event.sample == samp)[f.gate[[samp]]]
+        mark.p.e.unco <- unc[id, marker.proper]
+        mark.p.e.comp <- comp[id, marker.proper]
+        mar.exp.n <- length(mark.p.e.unco)
+        trim.n <- round(mar.exp.n * asp$rlm.trim.factor)
+        mark.p.e.low.unco <- sort(mark.p.e.unco)[trim.n]
+        mark.p.e.high.unco <- sort(mark.p.e.unco, decreasing = TRUE)[trim.n]
+        mark.p.e.low.comp <- sort(mark.p.e.comp)[trim.n]
+        mark.p.e.high.comp <- sort(mark.p.e.comp, decreasing = TRUE)[trim.n]
+        m.spill.c.inte <- m.spill.c.coef <- m.spill.zero
+        m.spill.c.slop <- m.spill.c.skew <- m.spill.zero
+        for(marker in f.cont$marker) {
+            mar.exp.unco <- unc[id, marker]
+            mar.exp.comp <- comp[id, marker]
+            mar.exp.low.unco <- sort(mar.exp.unco)[trim.n]
+            mar.exp.high.unco <- sort(mar.exp.unco, decreasing = TRUE)[trim.n]
+            mar.exp.low.comp <- sort(mar.exp.comp)[trim.n]
+            mar.exp.high.comp <- sort(mar.exp.comp, decreasing = TRUE)[trim.n]
+            expr.trim.idx.unco <- which(mark.p.e.unco > mark.p.e.low.unco
+                                        & mark.p.e.unco < mark.p.e.high.unco
+                                        & mar.exp.unco > mar.exp.low.unco
+                                        & mar.exp.unco < mar.exp.high.unco)
+            expr.trim.idx.comp <- which(mark.p.e.comp > mark.p.e.low.comp
+                                        & mark.p.e.comp < mark.p.e.high.comp
+                                        & mar.exp.comp > mar.exp.low.comp
+                                        & mar.exp.comp < mar.exp.high.comp)
+            mark.p.e.trim.unco <- mark.p.e.unco[expr.trim.idx.unco]
+            mar.exp.trim.unco <- mar.exp.unco[expr.trim.idx.unco]
+            mark.p.e.trim.comp <- mark.p.e.comp[expr.trim.idx.comp]
+            mar.exp.trim.comp <- mar.exp.comp[expr.trim.idx.comp]
+            if (marker == marker.proper) {
+                m.spill.c.coef[marker] <- 1
+                m.spill.c.slop[marker] <- 1
+            }
+            else {
+                fitRobust <- getFromNamespace("fit.robust.linear.model",
+                                              "autospill")
+                spillover.model.result <- fitRobust(mark.p.e.trim.comp,
+                                                    mar.exp.trim.comp,
+                                                    marker.proper,
+                                                    marker, asp)
+                m.spill.c.inte[marker] <- spillover.model.result[1,1]
+                m.spill.c.coef[marker] <- spillover.model.result[2,1]
+                if (scal) {
+                    m.spill.c.slop[marker] <- m.spill.c.coef[marker]
+                    m.spill.c.skew[marker] <- skewness(
+                        mar.exp.trim.comp)
+                }
+                else {
+                    id1 <- f.cont$marker.original[match(marker, f.cont$marker)]
+                    id2 <- f.cont$marker.original[match(marker.proper,
+                                                        f.cont$marker)]
+                    x.transform.inv <- f.cont$transform.inv[[id1]]
+                    y.transform.inv <- f.cont$transform.inv[[id2]]
+                    y1p <- min(mark.p.e.trim.comp)
+                    y2p <- max(mark.p.e.trim.comp)
+                    x1p <- m.spill.c.inte[marker] +
+                        m.spill.c.coef[marker] * y1p
+                    x2p <- m.spill.c.inte[marker] +
+                        m.spill.c.coef[marker] * y2p
+                    if (y1p == y2p || x1p == x2p)
+                        m.spill.c.slop[marker] <- 0
+                    else {
+                        y1 <- y.transform.inv(y1p)
+                        y2 <- y.transform.inv(y2p)
+                        x1 <- x.transform.inv(x1p)
+                        x2 <- x.transform.inv(x2p)
+                        m.spill.c.slop[marker] <- m.spill.c.coef[marker] *
+                            (x2 - x1) * (y2p - y1p)/((x2p - x1p) *
+                                                         (y2 - y1))
+                    }
+                    m.spill.c.skew[marker] <- skewness(
+                        x.transform.inv(mar.exp.trim.comp))
+                }
+            }
+            if (fig && !is.null(f.cont$figure.scatter.dir))
+                plotScatt <- utils::getFromNamespace("plot.scatter",
+                                                     "autospill")
+            plotScatt(unc[preID, marker], unc[preID, marker.proper],
+                      comp[preID, marker], comp[preID, marker.proper],
+                      sp.unc$inte[marker.proper, marker],
+                      sp.unc$coef[marker.proper, marker],
+                      m.spill.c.inte[marker], m.spill.c.coef[marker],
+                      m.spill.c.slop[marker],
+                      range(c(mar.exp.trim.unco, mar.exp.trim.comp)),
+                      range(c(mark.p.e.trim.unco, mark.p.e.trim.comp)),
+                      samp, marker, marker.proper, scal,
+                      lab, f.gate, f.cont, asp)
+        }
+        c(m.spill.c.inte, m.spill.c.coef,
+          m.spill.c.slop, m.spill.c.skew)
+    })
+    marker.spillover.comp <- do.call(rbind, marker.spillover.comp)
+    rownames(marker.spillover.comp) <- f.cont$marker
+    preID <- f.cont$marker.n
+    list(inte = marker.spillover.comp[, 1:preID],
+         coef = marker.spillover.comp[, 1:preID + preID],
+         slop = marker.spillover.comp[, 1:preID + 2 * preID],
+         skew = marker.spillover.comp[, 1:preID + 3 * preID])
 }
 
 ##File----
@@ -768,7 +1156,6 @@ reAddPops <- function() {
     setwd(bc$filePath)
     popPaths <- gs_get_pop_paths(bc$gs)
     tempEnv$gs <- gs_clone(bc$uncompGS)
-    compensate(tempEnv$gs, bc$compDFs[bc$appliedMatrix][[1]])
     popParents <- gs_pop_get_count_fast(bc$gs[1], "freq")[,3][[1]]
     popGates <- vapply(popPaths[-1], function(x)
         list(gs_pop_get_gate(bc$gs, x)[1][[1]]),
@@ -1410,7 +1797,6 @@ tSGenGroupORS <- function(currentEnttS, nrows, cex, xLim, yLim, ids, gOrS) {
     dfFinal <- data.frame()
     colorList <- c("black", "red")
     for(i in seq(bc$tIDs)) {
-
         dfFinal <- rbind(dfFinal, data.frame(
             "X"=currenttS[[i]][,1],
             "Y"=currenttS[[i]][,2],
@@ -1621,14 +2007,6 @@ ui <- fluidPage(
                                          needs to be located in the same
                                          folder of the FCS files)",
                                          multiple=FALSE),
-                        br(),
-                        br(),
-                        strong("or"),
-                        br(),
-                        br(),
-                        actionButton(inputId="loadTestData",
-                                     label=div(icon("file-download"),
-                                               "Download test data")),
                         br(),
                         br(),
                         br(),
@@ -2253,63 +2631,45 @@ server <- function(input, output, session) {
     })
 
     observeEvent(reactAxisCustom$d, {
-        reAddPops()
-        index <- match(input$samp, bc$fileList)
-        cs <- gs_pop_get_data(tempEnv$gs[index], reactPar$d)
-        ff <- cytoframe_to_flowFrame(cs[[1]])@exprs[,reactAxisCustom$d]
-        if(length(ff) > 0) {
-            dataF <- data.frame(ff)
-            if(nrow(dataF) > 5000) {
-                set.seed(6)
-                bc$tempDF <- dataF[sample.int(nrow(dataF), 5000),]
-            } else {
-                bc$tempDF <- dataF
-            }
-            value <- bc$customAxis[[which(bc$fluoCh == reactAxisCustom$d)]]
-            showModal(modalDialog(
-                tags$style(HTML(
-                    paste0("[for=posslider]+span>.irs>.irs-single,
+        bc$val <- bc$customAxis[[which(bc$fluoCh == reactAxisCustom$d)]]
+        showModal(modalDialog(
+            tags$style(HTML(
+                paste0("[for=posslider]+span>.irs>.irs-single,
                                    [for=posslider]", bc$sliderCol))),
-                tags$style(HTML(
-                    paste0("[for=negslider]+span>.irs>.irs-single,
+            tags$style(HTML(
+                paste0("[for=negslider]+span>.irs>.irs-single,
                                    [for=negslider]", bc$sliderCol))),
-                tags$style(HTML(
-                    paste0("[for=widthslider]+span>.irs>.irs-single,
+            tags$style(HTML(
+                paste0("[for=widthslider]+span>.irs>.irs-single,
                                    [for=widthslider]", bc$sliderCol))),
-                fluidRow(
-                    column(
-                        width=9, align="right",
-                        plotOutput("axisplot", height=440)),
-                    column(
-                        width=3, align="left", style="margin-top: 350px;",
-                        actionButton(inputId="resetbutton", label="Reset",
-                                     style=bc$whiteB))),
-                fluidRow(
-                    column(
-                        width=12, align="center",
-                        sliderInput("posslider", label="Positive Decades",
-                                    min=2, max=7, step=0.02, value=value[1],
-                                    ticks=FALSE),
-                        sliderInput("negslider", label="Negative Decades",
-                                    min=0, max=1, step=0.1, value=value[2],
-                                    ticks=FALSE),
-                        sliderInput("widthslider", label="Width Basis",
-                                    min=0, max=3, step=0.1,
-                                    value=log10(abs(value[3])),
-                                    ticks=FALSE))),
-                footer=list(actionButton(inputId="saveaxis", label="Ok",
-                                         style=bc$blackB),
-                            actionButton(inputId="cancelModal",
-                                         label="Cancel", style=bc$whiteB)
-                ),
-                easyClose=FALSE,
-                size="l"))
-        } else {
-            alert(paste0("The sample '", bc$fileList[index], "' has
-            0 events in the selected parent. Please choose another sample or
-                   change the parent."))
-            reactAxisCustom$d <- NULL
-        }
+            fluidRow(
+                column(
+                    width=9, align="right",
+                    plotOutput("axisplot", height=440)),
+                column(
+                    width=3, align="left", style="margin-top: 350px;",
+                    actionButton(inputId="resetbutton", label="Reset",
+                                 style=bc$whiteB))),
+            fluidRow(
+                column(
+                    width=12, align="center",
+                    sliderInput("posslider", label="Positive Decades",
+                                min=2, max=7, step=0.02, value=bc$val[1],
+                                ticks=FALSE),
+                    sliderInput("negslider", label="Negative Decades",
+                                min=0, max=1, step=0.1, value=bc$val[2],
+                                ticks=FALSE),
+                    sliderInput("widthslider", label="Width Basis",
+                                min=0, max=3, step=0.1,
+                                value=log10(abs(bc$val[3])),
+                                ticks=FALSE))),
+            footer=list(actionButton(inputId="saveaxis", label="Ok",
+                                     style=bc$blackB),
+                        actionButton(inputId="cancelModal",
+                                     label="Cancel", style=bc$whiteB)
+            ),
+            easyClose=FALSE,
+            size="l"))
     })
 
     observeEvent(input$resetbutton, {
@@ -2320,6 +2680,11 @@ server <- function(input, output, session) {
 
     output$axisplot <- renderPlot({
         par(mar=c(4,6,1,1) + 0.1, lwd=2)
+        inverseT <- flowjo_biexp(channelRange=4096, maxValue=262144,
+                                 pos=bc$val[1],
+                                 neg=bc$val[2],
+                                 widthBasis=bc$val[3],
+                                 inverse=TRUE)
         bc$widthBasis <- -10^input$widthslider
         if(input$widthslider < 1) {
             bc$widthBasis <- format(round(bc$widthBasis, 2), nsmall=2)
@@ -2332,10 +2697,8 @@ server <- function(input, output, session) {
                               pos=input$posslider,
                               neg=input$negslider,
                               widthBasis=as.numeric(bc$widthBasis))
-        if(is(bc$tempDF, "data.frame")) {
-            tempDF <- bc$tempDF[[1]]
-        }
-        tempDF <- trans(bc$tempDF)
+        unTransDF <- inverseT(bc$dF[,reactAxisCustom$d])
+        tempDF <- trans(unTransDF)
         xLim <- c(0, 4100)
         if(length(tempDF) > 1) {
             referenceHist <- hist(tempDF, breaks=20, plot=FALSE)
@@ -2388,8 +2751,7 @@ server <- function(input, output, session) {
                 )
                 bc$gs <- transform(bc$gs, transformerList(i, transSub))
             }
-            transSub <- flowjo_biexp_trans(channelRange=4096,
-                                           maxValue=262144,
+            transSub <- flowjo_biexp_trans(channelRange=4096, maxValue=262144,
                                            pos=input$posslider,
                                            neg=input$negslider,
                                            widthBasis=as.numeric(bc$widthBasis)
@@ -2418,8 +2780,8 @@ server <- function(input, output, session) {
                                 gate@max[[j]] <- Inf
                             }
                         }
-                        popgateList <- vapply(popgateList, function(x)
-                            list(gate), list(length(popgateList)))
+                        popgateList <- vapply(bc$fileList, function(x)
+                            list(gate), list(length(bc$fileList)))
                         gs_pop_set_gate(bc$gs, gate@filterId, popgateList)
                         recompute(bc$gs, gate@filterId)
                     }
@@ -2502,7 +2864,7 @@ server <- function(input, output, session) {
 
     observeEvent(input$about, {
         showModal(modalDialog(
-            title="BCyto (version 1.0)",
+            title="BCyto (version 1.0.2)",
             "BCyto is an open-source project that provides an user-friendly,
             high-performance UI for Flow Cytometry analysis in R.",
             br(),
@@ -3329,11 +3691,20 @@ server <- function(input, output, session) {
                     flowControl = suppressWarnings(
                         read.flow.control(controlDir, controlDefFile, asp)
                     )
-                    flowGate = gate.flow.data(flowControl, asp)
-                    spill = get.marker.spillover(TRUE, flowGate,
-                                                 flowControl, asp)
-                    refined = refine.spillover(spill, NULL, flowGate,
-                                               flowControl, asp)
+                    doGate <- getFromNamespace("do.gate", "autospill")
+                    flowGate <- lapply(flowControl$sample, function(samp)
+                        doGate(
+                            flowControl$expr.data.untr[
+                                flowControl$event.sample == samp,
+                                flowControl$scatter.parameter],
+                            flowControl$gate.parameter[[
+                                flowControl$marker.original[
+                                    match(samp,flowControl$marker)]]],
+                            samp, flowControl, asp))
+                    names(flowGate) <- flowControl$sample
+                    spill = autoGetMarker(TRUE, flowGate, flowControl, asp)
+                    refined = autoRefineSpill(spill, NULL, flowGate,
+                                              flowControl, asp)
                 })
                 rightOrder = vapply(flowControl$marker.original, function(x)
                     which(x == bc$fluoCh), integer(1))
@@ -3962,7 +4333,6 @@ server <- function(input, output, session) {
     ##right----
     output$prolifTable <- renderUI({
         input$tabs
-        #input$prolifSButt
         if(prolifReady$d == TRUE) {
             prolifTableGen(input$prolifSButt)
         }
@@ -4011,7 +4381,7 @@ server <- function(input, output, session) {
                 ID = length(columnValues) + 1
                 round = round(bc$totalDivPerc, 2)
                 columnValues[ID] = as.numeric(format(round, nsmall=2))
-                columnValues[ID] = bc$divPercents[1]
+                columnValues[ID+1] = bc$divPercents[1]
                 constantColLenght = length(columnValues)
                 for(i in 2:nrow(bc$refPeaks)) {
                     columnValues[i+(constantColLenght-1)] = bc$divPercents[i]
@@ -4388,6 +4758,7 @@ server <- function(input, output, session) {
         updateSelectInput(inputId="tSNEMode", selected="Heatmap")
         updateSelectInput(inputId="tSGroupOrSamp", selected="All")
         updateSelectInput(inputId="tSGroupOrSampID", selected="")
+        tSPlotActiv$d <- tSPlotActiv$d + 1
     })
 
     observeEvent(input$tSGroupOrSamp, {
@@ -5097,116 +5468,6 @@ server <- function(input, output, session) {
         }
     })
 
-    observeEvent(input$loadTestData, {
-        reactTestData$d <- TRUE
-        file1 <- "Cell maturation assay - 24 mb
-        (FlowRepository ID FR-FCM-Z4LZ)"
-        file2 <- "Proliferation assay - 18.5 mb
-        (FlowRepository ID FR-FCM-Z4LY)"
-        showModal(modalDialog(
-            strong("Select the data set to be downloaded."),
-            br(),
-            radioButtons("radioTestData", label="",
-                         choiceValues=c("test-data-1", "test-data-2"),
-                         choiceNames=c(file1, file2), width="100%"),
-            footer=list(
-                actionButton(inputId="downloadTestData", label="Download",
-                             style=bc$blackB),
-                actionButton(inputId="cancelModal", label="Cancel",
-                             style=bc$whiteB)
-            ),
-            easyClose=FALSE,
-            size="m"))
-    })
-
-    observeEvent(input$downloadTestData, {
-        hide("downloadTestData")
-        hide("cancelModal")
-        if(input$radioTestData == "test-data-1") {
-            bc$fileList <- c(
-                "Compensation Controls_APC Stained Control_013.fcs",
-                "Compensation Controls_FITC Stained Control_011.fcs",
-                "Compensation Controls_PE Stained Control_014.fcs",
-                "Compensation Controls_PE-Cy7 Stained Control_015.fcs",
-                "Compensation Controls_Unstained Control_010.fcs",
-                "Compensation Controls_V 450 Stained Control_012.fcs",
-                "Specimen_001_FMO-CD11c_003.fcs",
-                "Specimen_001_FMO-CD86_005.fcs",
-                "Specimen_001_FMO-Gr1_002.fcs",
-                "Specimen_001_FMO-MHCII_004.fcs",
-                "Specimen_001_FMO-Viability_001.fcs",
-                "Specimen_001_iDC_001_006.fcs",
-                "Specimen_001_iDC_002_007.fcs",
-                "Specimen_001_mDC_001_008.fcs",
-                "Specimen_001_mDC_002_009.fcs")
-            bc$compControlIDs <- seq_len(6)
-            bc$onlySampleIDs <- c(7:15)
-            datasetFile <- "dataset-1.RData"
-        } else {
-            bc$fileList <- c(
-                "Compensation Controls_APC-Cy7 Stained Control_080.fcs",
-                "Compensation Controls_FITC Stained Control_078.fcs",
-                "Compensation Controls_PE Stained Control_081.fcs",
-                "Compensation Controls_Unstained Control_077.fcs",
-                "Compensation Controls_V 450 Stained Control_079.fcs",
-                "Specimen_001_0-00ug-mL_002_030.fcs",
-                "Specimen_001_0-01ug-mL_003_034.fcs",
-                "Specimen_001_0-05ug-mL_002_036.fcs",
-                "Specimen_001_1-00ug-mL_001_044.fcs",
-                "Specimen_001_5-00ug-mL_002_048.fcs",
-                "Specimen_001_FMO-CD4_003.fcs",
-                "Specimen_001_FMO-CD44_004.fcs",
-                "Specimen_001_FMO-CFSE_001.fcs",
-                "Specimen_001_FMO-Viability_002.fcs")
-            bc$compControlIDs <- seq_len(5)
-            bc$onlySampleIDs <- c(6:14)
-            datasetFile <- "dataset-2.RData"
-        }
-        bc$filePath <- tempdir()
-        verifier <- vapply(bc$fileList, function(x)
-            length(grep(x, list.files(bc$filePath))) > 0, TRUE)
-        if(all(verifier) == FALSE) {
-            adjustedFileList <- list()
-            for(i in seq(bc$fileList)) {
-                if(grepl(" ", bc$fileList[i])) {
-                    adjustedFileList[[i]] <- gsub(" ", "%20", bc$fileList[i])
-                } else {
-                    adjustedFileList[[i]] <- bc$fileList[i]
-                }
-            }
-            adjustedFileList <- unlist(adjustedFileList)
-            dat <- data.frame(x=numeric(0), y=numeric(0))
-            message <- "Downloading"
-            max <- length(bc$fileList) + 1
-            withProgress(message=message, detail="file 0", value=0, max=max, {
-                for(i in seq(bc$fileList)) {
-                    df <- data.frame(x=stats::rnorm(1), y=stats::rnorm(1))
-                    dat <- rbind(dat, df)
-                    incProgress(1, detail=paste("file", i))
-                    Sys.sleep(0.1)
-                    download.file(paste0("https://github.com/BonilhaCaio/",
-                                         input$radioTestData, "/raw/main/",
-                                         adjustedFileList[i]),
-                                  destfile=file.path(bc$filePath,
-                                                     bc$fileList[i]))
-                }
-                download.file(paste0("https://github.com/BonilhaCaio/",
-                                     input$radioTestData, "/raw/main/",
-                                     datasetFile),
-                              destfile=file.path(bc$filePath, datasetFile))
-            })
-        }
-        reactBCytoFile$d <- datasetFile
-        if(input$radioTestData == "test-data-1") {
-            js$disableTab("prolifTab")
-        } else {
-            js$enableTab("prolifTab") }
-        js$enableTab("ancestryTab")
-        js$enableTab("overlayTab")
-        js$enableTab("tsneTab")
-        js$enableTab("resultTab")
-    })
-
     observeEvent(input$BCytoFileLoad, {
         if(!is.integer(input$BCytoFileLoad[1])) {
             reactBCytoFile$d <- input$BCytoFileLoad
@@ -5214,22 +5475,24 @@ server <- function(input, output, session) {
     })
 
     observeEvent(reactBCytoFile$d, {
-        if(reactBCytoFile$d[[1]] == "dataset-1.RData"
-           || reactBCytoFile$d[[1]] == "dataset-2.RData") {
-            verifier <- TRUE
+        tempFilePath <- parseFilePaths(c(Home= path_home(),
+                                         "R Installation"=R.home(),
+                                         getVolumes()),
+                                       reactBCytoFile$d)
+        tempStrSplit <- strsplit(tempFilePath[[4]][[1]], "")[[1]]
+        end <- length(tempStrSplit)
+        start <- end - length(strsplit(tempFilePath[[1]], "")[[1]])
+        bc$filePath <- paste(tempStrSplit[-start:-end], collapse="")
+        if(bc$OS == "OSX") {
+            tempDest <- paste0(bc$filePath, "/", tempFilePath[[1]])
         } else {
-            tempFilePath <- parseFilePaths(c(Home= path_home(),
-                                             "R Installation"=R.home(),
-                                             getVolumes()),
-                                           reactBCytoFile$d)
-            tempStrSplit <- strsplit(tempFilePath[[4]][[1]], "")[[1]]
-            end <- length(tempStrSplit)
-            start <- end - length(strsplit(tempFilePath[[1]], "")[[1]])
-            bc$filePath <- paste(tempStrSplit[-start:-end], collapse="")
-            load(paste0(bc$filePath, "/", tempFilePath[[1]]), tempEnv)
-            verifier <- vapply(tempEnv$fileList, function(x)
-                length(grep(x, list.files(bc$filePath))) > 0, TRUE)
+            tempDest <- file.path(bc$filePath,
+                                  tempFilePath[[1]],
+                                  fsep="\\")
         }
+        load(tempDest, tempEnv)
+        verifier <- vapply(tempEnv$fileList, function(x)
+            length(grep(x, list.files(bc$filePath))) > 0, TRUE)
         if(all(verifier)) {
             bc$loadingFile <- TRUE
             withProgress(message="Please wait...", detail="", value=0,
@@ -5239,8 +5502,15 @@ server <- function(input, output, session) {
                              setTwo <- "dataset-2.RData"
                              if(reactBCytoFile$d[[1]] == setOne
                                 || reactBCytoFile$d[[1]] == setTwo) {
-                                 load(paste0(bc$filePath, "/",
-                                             reactBCytoFile$d), bc)
+                                 if(bc$OS == "OSX") {
+                                     tempDest <- paste0(bc$filePath, "/",
+                                                        reactBCytoFile$d)
+                                 } else {
+                                     tempDest <- file.path(bc$filePath,
+                                                           reactBCytoFile$d,
+                                                           fsep="\\")
+                                 }
+                                 load(tempDest, bc)
                              } else {
                                  load(paste0(bc$filePath, "/",
                                              tempFilePath[[1]]), bc)
@@ -5527,15 +5797,25 @@ server <- function(input, output, session) {
     observeEvent(input$fileHelp, {
         showModal(modalDialog(
             title="Help",
-            "To start, load your FCS files, a BCyto file or download
-            test data.",
+            "FCS files for testing purposes can be donwloaded in
+            FlowRepository.org:",
             br(),
             br(),
-            "Donwloading test data will load FCS files from
-            https://github.com/BonilhaCaio/ in a temporary folder that will
-            be automatically deleted when the R session is terminated.",
+            "Cell maturation assay:",
+            br(),
+            "https://flowrepository.org/id/FR-FCM-Z4LZ",
+            br(),
+            "BCyto file: https://github.com/BonilhaCaio/test-data-2",
             br(),
             br(),
+            "Proliferation assay:",
+            br(),
+            "https://flowrepository.org/id/FR-FCM-Z4LY",
+            br(),
+            "BCyto file: https://github.com/BonilhaCaio/test-data-1",
+            br(),
+            br(),
+            strong("Note:"),
             "Saving the data will create a BCytoSave.RData file inside the
             FCS files folder.",
             br(),
