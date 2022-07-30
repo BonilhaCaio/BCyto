@@ -11,7 +11,7 @@ high-performance interface for Flow Cytometry analysis in R.
 
 ## Installation
 
-**BCyto** can be installed by first installing R (>= 4.1.0) and typing
+**BCyto** can be installed by first installing R (\>= 4.2.0) and typing
 the following commands in the R console:
 
 ``` r
@@ -105,8 +105,8 @@ previous analysis.
 ## Credits and citation
 
 A manuscript where dependencies and imports will be appropriately
-credited was submitted for publication on December 27th (2021).
-Meanwhile, please cite **BCyto** as follows:
+credited was submitted for publication. Meanwhile, please cite **BCyto**
+as follows:
 
 ``` r
 citation("BCyto")

@@ -22,7 +22,7 @@ knitr::opts_chunk$set(
 
 ## Installation
 
-**BCyto** can be installed by first installing R (>= 4.1.0) and typing the following commands in the R console:
+**BCyto** can be installed by first installing R (>= 4.2.0) and typing the following commands in the R console:
 
 ``` r
 #allowing installation of GitHub packages
@@ -77,7 +77,7 @@ BCyto::runBCyto()
 
 ## Credits and citation
 
-A manuscript where dependencies and imports will be appropriately credited was submitted for publication on December 27th (2021). Meanwhile, please cite **BCyto** as follows:
+A manuscript where dependencies and imports will be appropriately credited was submitted for publication. Meanwhile, please cite **BCyto** as follows:
 
 ```{r, eval = TRUE}
 citation("BCyto")
