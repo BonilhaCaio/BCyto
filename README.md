@@ -104,26 +104,8 @@ previous analysis.
 
 ## Credits and citation
 
-A manuscript where dependencies and imports will be appropriately
-credited was submitted for publication. Meanwhile, please cite **BCyto**
-as follows:
+To cite **BCyto** in publications, please use:
 
-``` r
-citation("BCyto")
-#> 
-#> To cite BCyto in publications use:
-#> 
-#>   Caio Santos Bonilha (2022). BCyto: A Shiny App for Flow Cytometry
-#>   Data Analysis and Visualization. R package version 1.0.3.
-#>   https://github.com/BonilhaCaio/BCyto.
-#> 
-#> A BibTeX entry for LaTeX users is
-#> 
-#>   @Manual{,
-#>     title = {BCyto: A Shiny App for Flow Cytometry Data Analysis and Visualization},
-#>     author = {Caio Santos Bonilha},
-#>     year = {2022},
-#>     note = {R package version 1.0.3},
-#>     url = {https://github.com/BonilhaCaio/BCyto},
-#>   }
-```
+Bonilha CS, BCyto: A shiny app for flow cytometry data analysis,
+Molecular and Cellular Probes (2022), doi:
+<https://doi.org/10.1016/j.mcp.2022.101848>

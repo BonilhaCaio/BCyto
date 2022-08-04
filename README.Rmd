@@ -77,8 +77,6 @@ BCyto::runBCyto()
 
 ## Credits and citation
 
-A manuscript where dependencies and imports will be appropriately credited was submitted for publication. Meanwhile, please cite **BCyto** as follows:
+To cite **BCyto** in publications, please use:
 
-```{r, eval = TRUE}
-citation("BCyto")
-```
+Bonilha CS, BCyto: A shiny app for flow cytometry data analysis, Molecular and Cellular Probes (2022), doi: https://doi.org/10.1016/j.mcp.2022.101848
