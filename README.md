@@ -106,6 +106,6 @@ previous analysis.
 
 To cite **BCyto** in publications, please use:
 
-Bonilha CS, BCyto: A shiny app for flow cytometry data analysis,
+Bonilha CS. BCyto: A shiny app for flow cytometry data analysis.
 Molecular and Cellular Probes (2022), doi:
 <https://doi.org/10.1016/j.mcp.2022.101848>
