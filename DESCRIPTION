@@ -1,41 +1,26 @@
-Package: BCyto
-Title: A Shiny App for Flow Cytometry Data Analysis and Visualization
+Package: csbSTATS
+Title: Interactive Statistical Analysis and Visualization in Shiny
 Version: 1.0.0
-Authors@R: person("Caio", "Santos Bonilha", email="caiosantosb@hotmail.com", 
-    role = c("aut", "cre"), comment = c(ORCID="0000-0003-1168-8392 "))
-Description: The BCyto R package is an open-source project that provides an 
-    user-friendly, high-performance UI for Flow Cytometry analysis.
-License: GPL-3
+Authors@R:
+    person(
+      given = "Caio",
+      family = "Santos Bonilha",
+      role = c("aut", "cre"),
+      email = "Caio.Bonilha@glasgow.ac.uk"
+    )
+Description: An open-source R package providing an interactive Shiny-based
+    interface for exploratory data analysis, visualization, and statistical
+    testing, including group comparisons and multiple-testing correction.
+License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.2
-Depends:
-    R (>= 4.1.0)
-Remotes:
-    carlosproca/autospill
+RoxygenNote: 7.3.2
 Imports:
-    autospill,
-    magrittr (>= 2.0.1),
-    flowWorkspace (>= 4.6.0),
-    flowCore (>= 2.4.0),
-    Rgraphviz (>= 2.38.0),
-    htmlwidgets (>= 1.5.4),
-    fs (>= 1.5.2),
-    methods (>= 4.1.2),
-    graph (>= 1.72.0),
-    grDevices,
-    graphics,
-    stats,
-    utils,
-    lattice (>= 0.20-45),
-    dplyr (>= 1.0.7),
-    MASS (>= 7.3-54),
-    rhandsontable (>= 0.3.8),
-    Rtsne (>= 0.15),
-    scales (>= 1.1.1),
-    shiny (>= 1.7.1),
-    shinyFiles (>= 0.9.1),
-    shinyjs (>= 2.0.0),
-    data.table (>= 1.14.2),
-    base64enc (>= 0.1-3)
+    shiny,
+    shinyjs,
+    ggplot2,
+    DT,
+    jsonlite,
+    colourpicker,
+    fontawesome,
+    base64enc
