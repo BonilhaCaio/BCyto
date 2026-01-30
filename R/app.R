@@ -5684,7 +5684,7 @@ server <- function(input, output, session) {
                                          selected=bc$tSNEMode)
                      } else {
                        choices <- c("Heatmap",
-                                    "Overlay Groups or Samples",
+                                    "Overlay Groups or Samples ",
                                     "Overlay Populations")
                        updateSelectInput(inputId="tSNEMode",
                                          choices=choices,

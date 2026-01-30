@@ -113,3 +113,4 @@ importMethodsFrom(flowWorkspace,colnames)
 importMethodsFrom(flowWorkspace,compensate)
 importMethodsFrom(flowWorkspace,plot)
 importMethodsFrom(flowWorkspace,transform)
+

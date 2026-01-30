@@ -89,7 +89,7 @@ previous analysis.
 -   Plots such as the one below are generated using the *t-SNE* tab.
     Concatenation is performed within the software under quick selection
     of samples and does not require re-upload of external files.
-    Highlights can be markers, populations or previous delimited groups.
+    Highlights can be markers, populations or previous delimited groups. 
 
 <center>
 <img src="inst/guide/Guide7.png" width="35%">

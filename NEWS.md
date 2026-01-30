@@ -1,3 +1,8 @@
+# BCyto 1.0.4 (30/01/2026)
+
+* Compatibility to other cytometers was expanded.
+
+
 # BCyto 1.0.3 (30/07/2022)
 
 * Font Awesome icons now fixed.

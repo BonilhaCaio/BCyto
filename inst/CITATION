@@ -17,6 +17,6 @@ citEntry(
   url      = url,
   doi      = "",
   textVersion = paste0(
-    "Caio Santos Bonilha (", year, "). BCyto: A Shiny App for Flow Cytometry Data Analysis and Visualization. ", note, ". ", url, "."
+    "Caio Santos Bonilha (", year, "). BCyto: A Shiny App for Flow Cytometry Data Analysis and Visualization.", note, ". ", url, "."
   )
 )
