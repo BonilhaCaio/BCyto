@@ -5698,7 +5698,7 @@ server <- function(input, output, session) {
                                        selected=bc$tSGroupOrSampID)
                      reacttSIDs$d <- bc$tSGroupOrSampIDs
                      reacttSNEPops$d <- bc$tSNEPops
-                     updateSliderInput(inputId="tSNEDotSize",
+                     updateSliderInput(inputId="tSNEDotSize ",
                                        value=bc$tSNEDotSize)
                      if(!is.null(bc$entiretSNE)) {
                        showtSNE()
@@ -5899,11 +5899,11 @@ server <- function(input, output, session) {
       br(),
       strong("Note:"),
       "Saving the data will create a BCytoSave.RData file inside the
-            FCS files folder.",
+            FCS file folder.",
       br(),
       br(),
       strong("Important:"),
-      "BCyto files are required to be inside the loaded FCS files
+      "BCyto files are required to be inside the loaded FCS file
             folder before being uploaded.",
       footer=NULL,
       size="m",
